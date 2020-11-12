@@ -1,0 +1,376 @@
+<?php
+
+define('EMPLOYEE_RID', 6);
+define('TERRITORY_MANAGER_RID', 4);
+
+function skyjackstorem_init() {
+	global $user;
+	$request_path = request_path();
+
+	// if checkout page, make sure they are logged in or there is a customer type in the session
+	if ($request_path == 'cart/checkout') {
+		if ($user->uid == 0 && !isset($_SESSION['customer_type_details']['customer_type'])) {
+			drupal_goto('cart/customer_type');
+		}
+		if(isset($_SESSION['customer_type_details']['session_start_time']))
+		{
+			if(time() - $_SESSION['customer_type_details']['session_start_time'] > 600)
+			{
+				drupal_goto('cart/customer_type');
+			}
+			else
+			{
+				$_SESSION['customer_type_details']['session_start_time'] = time();
+			}
+		}
+	}
+}
+
+
+
+/**
+ * Implements hook_menu().
+ */
+function skyjackstorem_menu() {
+	
+	$items['admin/store/customers/import_employee_numbers'] = array(
+		'title' => 'Employee Number Import',
+		'description' => 'Select a file to import with all employee infomation: name / email / numbers.',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('skyjackstorem_import_employee_numbers'),
+		'access arguments' => array('import employee numbers'),
+		'menu_name' => 'Management',
+	);
+	$items['cart/customer_type'] = array(
+		'title' => 'Select Customer Type',
+		'description' => 'To begin the checkout process you must select a customer type.',
+		'page callback' => 'skyjackstorem_customer_type',
+		'access callback' => TRUE,
+		'type' => MENU_CALLBACK
+	);
+	
+	return $items;
+}
+
+function skyjackstorem_import_employee_numbers ($form_state) {
+ 
+	// enctype="multipart/form-data" required by browsers to handle files.
+	$form = array(
+		'#attributes' => array('enctype' => "multipart/form-data"),
+	);
+
+	$form['file'] = array(
+		'#type' => 'file',
+		'#title' => t('File'),
+		'#description' => t('Upload employee numbers file. Must be a text file with one employee info per line.'),
+	);
+
+	$form['submit'] = array(
+		'#type' => 'submit',
+		'#value' => t('Submit'),
+	);
+
+	return $form;
+}
+
+/**
+ * Validate handler for skyjackstorem_import_employee_numbers().
+ */
+function skyjackstorem_import_employee_numbers_validate($form, &$form_state) {
+  $file = file_save_upload('file', array(
+    'file_validate_extensions' => array('txt'), // Validate extensions.
+  ));
+  // If the file passed validation:
+  if ($file) {
+  	// Check if directory exists and create if it doesn't
+  	$directory = 'public://employee_number_uploads';
+  	if (!file_prepare_directory($directory, FILE_CREATE_DIRECTORY)) {
+  	  form_set_error('file', t('Failed to create the employee_number_uploads directory.'));
+  	}
+    // Move the file, into the Drupal file system
+    if ($file = file_move($file, 'public://employee_number_uploads/' . $file->filename)) {
+      // Save the file for use in the submit handler.
+      $form_state['storage']['file'] = $file;
+    }
+    else {
+      form_set_error('file', t('Failed to write the uploaded file the site\'s file folder.'));
+    }
+  }
+  else {
+    form_set_error('file', t('No file was uploaded.'));
+  }
+}
+
+/**
+ * Submit handler for skyjackstorem_import_employee_numbers().
+ */
+function skyjackstorem_import_employee_numbers_submit($form, &$form_state) {	
+  $file = $form_state['storage']['file'];
+  // We are done with the file, remove it from storage.
+  unset($form_state['storage']['file']);
+  // Make the storage of the file permanent
+  $file->status = FILE_STATUS_PERMANENT;
+  // Save file status.
+  file_save($file);
+
+  $file_contents = file_get_contents($file->uri);
+
+  //$file_contents_array = explode("\r\n", $file_contents);
+  $file_contents_array = preg_split("/\\r\\n|\\r|\\n/", $file_contents);
+  
+  //need to make sure we are not adding empty elements into the db.
+  //sra-rtraction 3.25.12
+  for($i = 0; $i<= count($file_contents_array) -1; $i++ )
+  {
+  		if($file_contents_array[$i] == '')
+		{
+			unset($file_contents_array[$i]);
+		}
+		else
+		{
+			$file_contents_array[$i] = explode('/', $file_contents_array[$i]);
+		}
+  }
+  //$file_contents_array = array_values($file_contents_array);
+  
+  if (count($file_contents_array)) {
+  	$rows_deleted = db_delete('employee_info')->execute();
+    //$query = db_insert('employee_info')
+    //  ->fields(array('employee_number, employee_email, employee_name'));
+	$query = db_insert('employee_info')
+      ->fields(array('employee_number'));
+	
+	
+    foreach ($file_contents_array as $v) {
+  	  //$query->values(array(trim($v[0]), trim($v[1]), trim($v[2])));
+  	  if(trim($v[0]) != '')
+		$query->values(array(str_replace('-','',trim($v[0]))));
+    }
+    $query->execute();
+	
+	drupal_set_message('Employee numbers have been updated.');
+  } else {
+  	drupal_set_message('There were no numbers located in the uploaded file. Please check the format of the file and try again.', 'error');
+  }
+
+}
+
+
+
+function skyjackstorem_customer_type() {
+	global $user;
+
+	unset($_SESSION['customer_type_details']);
+  
+	if ($user->uid != 0) {
+		drupal_goto('cart/checkout');
+	}
+  
+	return drupal_get_form('skyjackstorem_customer_type_form'); 
+}
+
+/*
+ * Checkout process form that allows customer to select their type before checkout
+ */
+function skyjackstorem_customer_type_form ($form, $form_state) {
+	$customer_type_default = empty($form_state['values']['customer_type']) ? '' : $form_state['values']['customer_type'];
+
+	$form['#ajax'] = array(
+		'callback' => 'skyjackstorem_customer_type_details_ajax',
+		'wrapper' => 'customer_type_details_wrapper'
+	);
+  
+	
+	$form['message'] = array(
+		'#type' => 'markup',
+		'#markup' => '<h4>' . t('Are you an employee?') . '</h4>'
+	);	
+
+	$form['customer_type'] = array(
+		'#type' => 'radios',
+		'#default_value' => 'no',
+		'#options' => array(
+			'employee' => 'Yes',
+			'new' => 'No',
+		),
+	);
+
+	$form['email_new'] = array(
+		'#type' => 'textfield',
+		'#title' => 'Email',
+		'#description' => 'Please enter the email address you wish to use for this order.',
+		'#states' => array(
+			'visible' => array(
+				':input[name="customer_type"]' => array('value' => 'new'),
+			),
+		)
+	);
+  
+	$form['employee_number'] = array(
+		'#type' => 'textfield',
+		'#title' => 'Employee Number',
+		'#description' => 'Please enter your employee number to proceed.',
+		// '#required' => TRUE,
+		'#states' => array(
+			'visible' => array(
+				':input[name="customer_type"]' => array('value' => 'employee'),
+			),
+		)	
+	);
+	
+	$form['email_employee'] = array(
+		'#type' => 'textfield',
+		'#title' => 'Email',
+		'#description' => 'Please enter the email address you wish to use for this order.',    
+		'#states' => array(
+			'visible' => array(
+				':input[name="customer_type"]' => array('value' => 'employee'),
+			),
+		)
+	);
+	
+	$form['submit'] = array(
+		'#type' => 'submit',
+		'#value' => 'Continue'
+	);
+  
+	$form['tm_message'] = array(
+		'#type' => 'markup',
+		'#markup' => '<p class="tm-note"><b>(If you are a VP or Territory Manager, please ' . l('login', 'user/login') . ')</b></p>'
+	);	
+    
+	return $form;
+}
+
+function skyjackstorem_customer_type_form_validate (&$form, &$form_state) {
+
+	switch ($form_state['values']['customer_type']) {
+		case 'new':
+			if (!valid_email_address($form_state['values']['email_new'])) {
+				form_set_error('email', t('Please enter a valid email address.'));
+			}
+			return;
+	  
+		case 'employee':
+			//sra-rtraction 3.25.12 - adding this in to make sure we have a valid employee number.
+			//there were cases where empty rows were being added in the employee_info db tables
+			//allowing users to come in without an employee  number.
+  	
+			if (trim($form_state['values']['employee_number'] ) == '' ) {
+				form_set_error('email', t('You must enter a valid employee number.'));
+				return;
+			}
+			
+			if (!valid_email_address($form_state['values']['email_employee'])) {
+				form_set_error('email', t('Please enter a valid email address.'));
+			}
+			
+	
+			// check against database table of employee numbers
+			$query = db_select('employee_info', 'e')
+				->fields('e')
+				->condition('employee_number', str_replace(array('-',' ','.'),'',trim($form_state['values']['employee_number'])))
+				//->condition('employee_email', trim($form_state['values']['email_employee']))
+				->execute();
+      
+			if ($query->rowCount() == 0) {
+				form_set_error('email', t('That is not a valid employee number.'));
+			}
+			
+      
+			// check if this user already has an employee number assigned
+			/*
+			$employee_user = user_load_by_mail($form_state['values']['email_employee']);
+			$existing_employee_number = field_get_items('user', $employee_user, 'field_employee_number');
+
+			if ($existing_employee_number[0]['value'] != '' && $existing_employee_number[0]['value'] != $form_state['values']['employee_number']) {
+				form_set_error('email', t('There is already an existing employee number associated with this email. Please contact the administrator if there has been a mistake.'));
+			}
+			*/
+			return;
+    }
+}
+
+function skyjackstorem_customer_type_form_submit (&$form, &$form_state) {
+	
+	$_SESSION['customer_type_details']['customer_type'] = $form_state['values']['customer_type'];
+	switch ($form_state['values']['customer_type']) {
+		case 'new':
+			$_SESSION['customer_type_details']['email'] = $form_state['values']['email_new'];
+			$_SESSION['customer_type_details']['session_start_time'] = time();
+			$form_state['redirect'] = 'cart/checkout';
+			break;
+      
+		case 'employee':
+			
+			$_SESSION['customer_type_details']['employee_number'] = $form_state['values']['employee_number'];
+			//$_SESSION['customer_type_details']['employee_name'] = getEmployeeName($form_state['values']['employee_number']);
+			$_SESSION['customer_type_details']['email'] = $form_state['values']['email_employee'];
+			$_SESSION['customer_type_details']['session_start_time'] = time();
+			$form_state['redirect'] = 'cart/checkout';
+			break;  
+		case 'existing':
+		case 'territory_manager':
+			$form_state['redirect'] = 'user/login';
+			break;
+	}
+	
+}
+
+function getEmployeeName($employee_number) {
+	return db_query('SELECT employee_name FROM {employee_info} WHERE employee_number = :employee_number', array(':employee_number' => $employee_number))->fetchField();
+}
+
+
+/**
+ * Implements hook_uc_checkout_pane().
+ */
+function skyjackstorem_uc_checkout_pane() {
+  
+	$panes['skyjack_customer'] = array(
+		'callback' => 'skyjackstorem_checkout_pane_customer',
+		'title' => 'Skyjack Customer Pane',
+		'desc' => t('Manages the customer and user account information of the checkout form.'),
+		'weight' => 2,
+	);  
+	return $panes;
+}
+
+
+/**
+ * Gets the user's email address for login.
+ */
+function skyjackstorem_checkout_pane_customer($op, &$order, $form = NULL, &$form_state = NULL) {
+	global $user;
+
+	switch ($op) {
+		case 'view':
+			/*
+			if(isset($_SESSION['customer_type_details']['customer_type']) and $_SESSION['customer_type_details']['customer_type'] == 'employee')
+			{
+				$contents['customer_type'] = array(
+					'#type' => 'hidden',
+					'#value' => $_SESSION['customer_type_details']['customer_type']
+				);
+				if ($customer_type == 'employee') {
+					$contents['employee_number'] = array(
+						'#type' => 'hidden',
+						'#value' => $_SESSION['customer_type_details']['employee_number']
+					);
+				}
+				$description = t('Order information will be sent to the following e-mail: <strong>@email</strong>', array('@email' => $_SESSION['customer_type_details']['email']));// . '<br />'
+				$contents['primary_email'] = array('#type' => 'hidden', '#value' => check_plain($email));
+
+				return array('description' => $description, 'contents' => $contents);	
+			}
+			*/
+		case 'process':
+		  
+
+		case 'review':
+		  
+
+		case 'settings':
+		  
+	}
+}

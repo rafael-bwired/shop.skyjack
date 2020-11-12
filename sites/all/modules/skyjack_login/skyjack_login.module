@@ -1,0 +1,22 @@
+<?php
+
+/**
+ * @file
+ * Enables the user registration and login system.
+ */
+
+    // @file : skyjack_login.module
+    function skyjack_login_user_login(&$edit, $account) {
+   
+
+      $query1     = db_query("SELECT * FROM `field_data_field_user_region` where entity_id = :uid ", array(':uid' => $account->uid));
+
+      $user_region_data = $query1->fetchObject()->field_user_region_value;
+
+
+      //sets user region from profile as default country code por ubercart multiprice
+      $_SESSION['uc_multiprice']['country_code'] = $user_region_data;
+
+      //var_dump($user_region_data);
+      //exit;
+    }
