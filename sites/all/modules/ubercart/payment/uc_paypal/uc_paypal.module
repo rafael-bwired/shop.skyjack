@@ -973,6 +973,10 @@ function uc_paypal_wps_form($form, &$form_state, $order) {
     if ($discount != 0) {
       $data['discount_amount_cart'] = $discount;
     }
+
+    foreach ($_SESSION['_coupon_total'] as $key => $value) {
+      $data['discount_amount_cart'] += $value;      
+    }
   }
   else {
     // List the whole cart as a single item to account for fees/discounts.

@@ -507,6 +507,26 @@ function theme_uc_cart_checkout_review($variables) {
   $output = '<div id="review-instructions">' . filter_xss_admin(variable_get('uc_checkout_review_instructions', uc_get_message('review_instructions'))) . '</div>';
 
   $output .= '<table class="order-review-table">';
+  
+  if(isset($_SESSION['_coupon_total'])){
+    $payment = $panes['Payment method'];
+    $coupon_total = array();
+    
+    foreach ($_SESSION['_coupon_total'] as $key => $value) {
+      foreach($payment as $kItem => $vItem){
+        if ( strpos( $vItem['title'], $key ) !== false ) {
+          unset($payment[$kItem]);
+          $coupon_total[] = array(
+            'title' => 'Coupon '.$key,
+            'data' => '-'.theme('uc_price', array('price' => $value)),
+          );
+          
+        }
+      }
+    }
+
+    $panes['Payment method'] = array_merge($coupon_total,$payment);    
+  }
 
   foreach ($panes as $title => $data) {
     $output .= '<tr class="pane-title-row">';

@@ -464,9 +464,11 @@ function uc_coupon_session_add($code, $op = 'submit') {
 function uc_coupon_session_clear($code = NULL) {
   if (isset($code)) {
     unset($_SESSION['uc_coupons'][$code]);
+    unset($_SESSION['_coupon_total'][$code]);
   }
   else {
     unset($_SESSION['uc_coupons']);
+    unset($_SESSION['_coupon_total']);
   }
 }
 
@@ -935,8 +937,10 @@ function uc_coupon_calculate_discounts($coupon, $order) {
         if ($coupon->data['apply_to'] == 'subtotal' || $coupon->data['apply_to'] == 'products_total') {
           // Apply single discount proportionally across all matching items.
           $discount->discount = $total == 0 ? 0 : min($coupon->value * ($inclusive_price / $total), $inclusive_price);
-        }
-        else {
+        }else if($coupon->data['apply_to'] == 'total'){
+          $_SESSION['_coupon_total'][$coupon->code] = $coupon->value;
+            // $discount->discount = $coupon->value;
+        }else {
           // Apply discount to each product.
           $discount->discount = min($coupon->value * $discount->qty, $inclusive_price);
         }

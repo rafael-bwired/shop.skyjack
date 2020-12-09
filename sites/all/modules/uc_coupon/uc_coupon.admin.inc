@@ -552,6 +552,7 @@ function uc_coupon_add_form($form, &$form_state, $coupon = NULL) {
     '#title' => t('Apply discount to'),
     '#options' => array(
       'subtotal' => t('Order subtotal'),
+      'total' => t('Order Total'),
       'products_total' => t('Total of matching product(s)'),
       'products' => t('All matching product(s)'),
       'cheapest' => t('The cheapest matching product(s)'),

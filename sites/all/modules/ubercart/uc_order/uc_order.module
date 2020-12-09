@@ -1676,6 +1676,10 @@ function uc_order_get_total($order, $products_only = FALSE) {
       $total += $value;
     }
   }
+  
+  foreach ($_SESSION['_coupon_total'] as $key => $value) {
+    $total -= $value;
+  }
 
   return $total;
 }
