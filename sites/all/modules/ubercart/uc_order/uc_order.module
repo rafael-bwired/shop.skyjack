@@ -1681,6 +1681,10 @@ function uc_order_get_total($order, $products_only = FALSE) {
     $total -= $value;
   }
 
+  if($total < 0){
+      $total = 0;
+  }
+
   return $total;
 }
 
