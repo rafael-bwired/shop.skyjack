@@ -613,6 +613,7 @@ function uc_taxes_apply_item_tax($item, $tax) {
 function uc_taxes_apply_tax($order, $tax) {
   $amount = 0;
   $taxable_amount = 0;
+  $taxable_amount_coupon = 0;  
   if (is_array($order->products)) {
     foreach ($order->products as $item) {
       $taxable_amount += $item->qty * uc_taxes_apply_item_tax($item, $tax);
@@ -628,7 +629,14 @@ function uc_taxes_apply_tax($order, $tax) {
       if (in_array($line_item['type'], $taxed_line_items)) {
         $callback = _uc_line_item_data($line_item['type'], 'tax_adjustment');
         if (isset($callback) && function_exists($callback)) {
-          $taxable_amount += $callback($line_item['amount'], $order, $tax);
+          if($line_item['type'] == 'coupon'){
+            if($taxable_amount_coupon == 0){
+                $taxable_amount_coupon = $callback($line_item['amount'], $order, $tax);
+                $taxable_amount += $taxable_amount_coupon;                
+            }
+          }else{
+            $taxable_amount += $callback($line_item['amount'], $order, $tax);
+          }
         }
         else {
           $taxable_amount += $line_item['amount'];
@@ -642,7 +650,7 @@ function uc_taxes_apply_tax($order, $tax) {
       $taxable_amount += $other_tax->amount;
     }
   }
-  $amount = $taxable_amount * $tax->rate;
+
   if ($amount) {
     $line_item = (object)array(
       'id' => $tax->id,
@@ -656,7 +664,7 @@ function uc_taxes_apply_tax($order, $tax) {
       'tax' => $tax,
       'taxable_amount' => $taxable_amount,
       'tax_jurisdiction' => $tax->name,
-    );
+    );//echo "<pre>";print_r($line_item);die;
     return $line_item;
   }
 }
