@@ -13,13 +13,13 @@
 function theme_uc_payment_totals($variables) {
   $order = $variables['order'];
   $line_items = uc_order_load_line_items_display($order);
-
+  $coupon_total = array();
   
   foreach ($_SESSION['_coupon_total'] as $key => $value) {
     foreach($line_items as $kItem => $vItem){
       if($vItem['type'] == 'coupon' && $vItem['data']['code'] == $key){
           unset($line_items[$kItem]);
-          $line_items[] = array(
+          $coupon_total[] = array(
             'title' => 'Coupon '.$key,
             'type' => 'coupon',
             'amount' => $value,
@@ -30,6 +30,8 @@ function theme_uc_payment_totals($variables) {
     }
   }
   
+  $line_items = array_merge($coupon_total,$line_items);
+
   $output = '<table id="uc-order-total-preview">';
 
   foreach ($line_items as $line) {

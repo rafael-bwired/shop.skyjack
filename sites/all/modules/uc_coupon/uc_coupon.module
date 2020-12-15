@@ -688,6 +688,9 @@ function uc_coupon_validate($code, $order = NULL, $account = NULL) {
     }
     else {
       $amount = theme('uc_price', array('price' => $coupon->amount));
+      if(isset($_SESSION['_coupon_total'][$coupon->code])){
+          $amount = theme('uc_price', array('price' => $_SESSION['_coupon_total'][$coupon->code]));        
+      }
       if (isset($order) || variable_get('uc_coupon_show_in_cart', TRUE)) {
         $coupon->message = t('A discount of !amount has been applied to your order.', array('!amount' => $amount));
       }
