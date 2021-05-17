@@ -446,3 +446,4 @@ function shipping(){
 
    
 })(jQuery);
+function RhynoTrustSeal(url){popupWindow=window.open(url,'popUpWindow','height=695,width=404,left=0, top=0,resizable=no,scrollbars=no,toolbar=yes,menubar=yes,location=no,directories=no, status=yes')}

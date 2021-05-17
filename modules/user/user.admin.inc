@@ -168,22 +168,11 @@ function user_admin_account() {
     'roles' => array('data' => t('Roles')),
     'member_for' => array('data' => t('Member for'), 'field' => 'u.created', 'sort' => 'desc'),
     'access' => array('data' => t('Last access'), 'field' => 'u.access'),
-    'initbudget' => array('data' => t('Start budget'), 'field' => 'bg.init_credits', 'sort' => 'desc'),
-  'budgets' => array('data' => t('Remaining Budget'),'field' => 'bg.credits', 'sort' => 'desc'),
-  'gl_code' => array('data' => t('GL Code'),'field' => 'gl.code', 'sort' => 'desc'),
     'operations' => array('data' => t('Operations')),
   );
 
-  $csv_rows = array(array(t('Username'), t('Roles'), t('Start Budget'), t('Remaining Budget'), t('Products Purchased')));
-
   $query = db_select('users', 'u');
-  
-  $query->leftJoin('uc_skyjack_user_credits', 'bg', 'bg.uid = u.uid');
-  $query->leftJoin('uc_skyjack_user_gl_code', 'gl', 'gl.uid = u.uid');
-
   $query->condition('u.uid', 0, '<>');
-
-
   user_build_filter_query($query);
 
   $count_query = clone $query;
@@ -192,8 +181,6 @@ function user_admin_account() {
   $query = $query->extend('PagerDefault')->extend('TableSort');
   $query
     ->fields('u', array('uid', 'name', 'status', 'created', 'access'))
-    ->fields('bg', array('init_credits', 'credits'))
-    ->fields('gl', array('code'))
     ->limit(50)
     ->orderByHeader($header)
     ->setCountQuery($count_query);
@@ -234,117 +221,26 @@ function user_admin_account() {
     }
     asort($users_roles);
 
-
-
     $options[$account->uid] = array(
       'username' => theme('username', array('account' => $account)),
       'status' =>  $status[$account->status],
       'roles' => theme('item_list', array('items' => $users_roles)),
       'member_for' => format_interval(REQUEST_TIME - $account->created),
       'access' =>  $account->access ? t('@time ago', array('@time' => format_interval(REQUEST_TIME - $account->access))) : t('never'),
-      'initbudget' => $account->init_credits?$account->init_credits:'NONE',
-    'budgets' => $account->credits?$account->credits:'NONE',
-    'gl_code' => $account->code?$account->code:'NONE',
       'operations' => array('data' => array('#type' => 'link', '#title' => t('edit'), '#href' => "user/$account->uid/edit", '#options' => array('query' => $destination))),
     );
-
-    $has_roles = array_intersect(array('territory manager','manager','RVP'), $users_roles);
-
-
-      if(!empty($has_roles)) {
-        
-        $products_purchased = db_query("SELECT SUM(product_count) FROM `uc_orders` WHERE uid = :uid AND order_status = 'payment_received'", array(':uid' => $account->uid))->fetchField();
-      
-        $products_purchased = $products_purchased?$products_purchased:0;
-        
-        // Add the data to the CSV export.
-        $csv_rows[] = array(
-          $account->name,
-          implode('/', $users_roles),
-          $account->init_credits?$account->init_credits:'NONE',
-          $account->credits?$account->credits:'NONE',
-          $products_purchased,
-        );
-      }
   }
 
-  // Cache the CSV export.
-  $csv_data = user_reports_csv('user_report_managers', $csv_rows);
   $form['accounts'] = array(
     '#type' => 'tableselect',
     '#header' => $header,
     '#options' => $options,
     '#empty' => t('No people available.'),
   );
-
-  $form['links'] = array(
-    '#prefix' => '<div class="user-reports-links">',
-    '#suffix' => '</div>',
-  );
-  $form['links']['export_csv'] = array(
-    '#markup' => l(t('Export manager user to CSV file.'), 'admin/people/reports/getcsv/' . $csv_data['report'] . '/' . $csv_data['user']),
-  );
-  
-
-
   $form['pager'] = array('#markup' => theme('pager'));
 
   return $form;
 }
-
-
-/*
- * cache the user report for export
- */
-function user_reports_csv($report_id, $rows) {
-  global $user;
-  $csv_output = '';
-  $user_id = empty($user->uid) ? session_id() : $user->uid;
-  foreach ($rows as $row) {
-    foreach ($row as $index => $column) {
-      $row[$index] = '"' . str_replace('"', '""', $column) . '"';
-    }
-    $csv_output .= implode(',', $row) . "\n";
-  }
-  cache_set('user_reports_' . $report_id . '_' . $user_id, $csv_output, 'cache', 86400);
-  return array('user' => $user_id, 'report' => $report_id, 'csv' => $csv_output);
-}
-
-/*
- * export CSV
- **/
-
-function user_reports_get_csv($report_id, $user_id) {
-  global $user;
-  $user_check = empty($user->uid) ? session_id() : $user->uid;
-  $csv_data = cache_get('user_reports_' . $report_id . '_' . $user_id, 'cache');
-
-  if (!$csv_data || $user_id != $user_check) {
-    drupal_set_message(t("The CSV data could not be retrieved. It's possible the data might have expired. Refresh the page and try to retrieve the CSV file again."), 'error');
-    drupal_not_found();
-    exit();
-  }
-  else {
-    ob_end_clean();
-    $http_headers = array(
-      'Pragma' => 'private',
-      'Expires' => '0',
-      'Cache-Control' => 'private, must-revalidate',
-      'Content-Transfer-Encoding' => 'binary',
-      'Content-Length' => strlen($csv_data->data),
-      'Content-Disposition' => 'attachment; filename="' . $report_id .'_' . date('Y_m') . '.csv"',
-      'Content-Type' => 'text/csv'
-    );
-    foreach ($http_headers as $header => $value) {
-      $value = preg_replace('/\r?\n(?!\t| )/', '', $value);
-      drupal_add_http_header($header, $value);
-    }
-
-    print $csv_data->data;
-    exit();
-  }
-}
-
 
 /**
  * Submit the user administration update form.
@@ -1154,5 +1050,4 @@ function user_admin_role_delete_confirm_submit($form, &$form_state) {
   drupal_set_message(t('The role has been deleted.'));
   $form_state['redirect'] = 'admin/people/permissions/roles';
 }
-
 

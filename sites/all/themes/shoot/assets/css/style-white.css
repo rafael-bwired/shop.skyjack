@@ -8802,3 +8802,7 @@ body.page-admin-people .user-reports-links {
 #uc-attribute-table thead tr th {
     text-align: center;
 }
+/*hide Customer Access Centre nav item*/
+.cat-nav li:nth-child(6) {
+    display: none;
+}
