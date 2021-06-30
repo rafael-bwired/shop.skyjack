@@ -234,17 +234,15 @@ function user_admin_account() {
     }
     asort($users_roles);
 
-
-
     $options[$account->uid] = array(
       'username' => theme('username', array('account' => $account)),
       'status' =>  $status[$account->status],
       'roles' => theme('item_list', array('items' => $users_roles)),
       'member_for' => format_interval(REQUEST_TIME - $account->created),
       'access' =>  $account->access ? t('@time ago', array('@time' => format_interval(REQUEST_TIME - $account->access))) : t('never'),
-      'initbudget' => $account->init_credits?$account->init_credits:'NONE',
-    'budgets' => $account->credits?$account->credits:'NONE',
-    'gl_code' => $account->code?$account->code:'NONE',
+      'initbudget' => $account->init_credits ? '$' . $account->init_credits : 'NONE',
+    'budgets' => $account->credits ? '$' . $account->credits : 'NONE',
+    'gl_code' => $account->code ? $account->code : 'NONE',
       'operations' => array('data' => array('#type' => 'link', '#title' => t('edit'), '#href' => "user/$account->uid/edit", '#options' => array('query' => $destination))),
     );
 
