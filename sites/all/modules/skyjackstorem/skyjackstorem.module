@@ -359,8 +359,9 @@ function skyjackstorem_customer_type_form_validate (&$form, &$form_state) {
 				->condition('employee_number', str_replace(array('-',' ','.'),'',trim($form_state['values']['employee_number'])))
 				//->condition('employee_email', trim($form_state['values']['email_employee']))
 				->execute();
-      
-			if ($query->rowCount() == 0) {
+
+      			if (false) {
+			//if ($query->rowCount() == 0) {
 				form_set_error('email', t('That is not a valid employee number.'));
 			}
 			
