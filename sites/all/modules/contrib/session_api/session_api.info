@@ -1,15 +1,11 @@
 name = Session API
 description = Provides an interface for storing session information.
 core = 7.x
-files[] = session_api.module
-files[] = session_api.admin.inc
-files[] = session_api.install
 files[] = session_api.test
 configure = admin/config/development/session-api
 
-; Information added by drupal.org packaging script on 2012-11-30
-version = "7.x-1.0-rc1"
+; Information added by Drupal.org packaging script on 2021-12-15
+version = "7.x-1.0"
 core = "7.x"
 project = "session_api"
-datestamp = "1354234727"
-
+datestamp = "1639572312"

@@ -1,6 +1,5 @@
 <?php
 
-
 /**
  * @file
  * Session API tests.
@@ -54,24 +53,24 @@ class SessionApiTestCase extends DrupalWebTestCase {
     // Capture existing values, which are restored at the end of this function.
     $old_cookie = $_COOKIE;
 
-    // session_api_available();
+    // Test session_api_available() with cookies disabled.
     $_COOKIE = NULL;
     $this->assertFalse(session_api_available(), t('Function session_api_available() correctly returns FALSE when cookies are disabled.'));
     $this->assertFalse(session_api_get_sid(), t('Function session_api_get_sid() correctly returns FALSE when cookies are disabled.'));
 
     // Enable cookies.
-    $_COOKIE = $old_cookie;
+    $_COOKIE = array('session_api_test' => 'test');
 
     // Check that the session_api_get_sid doesn't create a sid when the
     // caller don't want it to get created.
-    unset($_COOKIE['session_api_session']);
+    unset($_COOKIE[session_api_get_cookie_name()]);
     $this->assertEqual(session_api_get_sid(FALSE), -1, t("The session_api_get_sid returns a negative value when the caller don't want to create a new session if it doesn't exist"));
 
     // Store ID in the db.
     $rec = new stdClass();
     $rec->session_id = drupal_hash_base64(uniqid(mt_rand(), TRUE));
     drupal_write_record('session_api', $rec);
-    $_COOKIE['session_api_session'] = $rec->session_id;
+    $_COOKIE[session_api_get_cookie_name()] = $rec->session_id;
     $this->assertEqual(session_api_get_sid(), $rec->sid, 'Function session_api_get_sid() correctly retrieves the session_api_id from the database.');
 
     // Initialize sessions.
@@ -82,5 +81,8 @@ class SessionApiTestCase extends DrupalWebTestCase {
     $this->assertTrue(!empty($session_id), t('Session API test module properly initialized session api.'));
     $stored = db_query("SELECT session_id FROM {session_api} WHERE sid = :sid", array(':sid' => $sid))->fetchField();
     $this->assertEqual($stored, $session_id, t('session_api_get_sid() is properly storing the session_id.'));
+
+    // Restore original cookie.
+    $_COOKIE = $old_cookie;
   }
 }
