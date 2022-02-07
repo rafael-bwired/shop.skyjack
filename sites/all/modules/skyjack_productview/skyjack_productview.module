@@ -1,0 +1,86 @@
+<?php
+/*
+function skyjack_productview_views_pre_execute(&$view) {
+	//drupal_set_message($view->name);
+	if($view->name=="home_popular_products") {
+		echo '<pre>';
+		var_dump($view->build_info['query']);
+		echo '</pre>';
+		
+	}
+}
+*/
+
+function skyjack_productview_views_query_alter(&$view, &$query) {
+	if($view->name=="home_popular_products") {
+		
+		if(isset($_GET['category']))
+		{
+			$value = filter_xss($_GET['category']);
+			
+			
+			// Write the join conditions
+			$join = new views_join();
+			$join->table = 'field_data_field_product_category';
+			$join->left_table = 'node';// or wathever table you want to join with
+			$join->field = 'entity_id';
+			$join->left_field = 'nid';// or wathever column you want to join with
+			$join->type = 'left';// if you want another join type play with this value
+			
+			// Do the actual join
+			$query->table_queue['product_category'] = array (
+				'alias' => 'product_category',// I believe this is optional
+				'table' => 'field_data_field_product_category',
+				'relationship' => 'node',
+				'join' => $join,
+			);
+			
+			$query->where[] = array(
+				'type' => 'and',
+				'conditions' => array(
+					array(
+						'field' => 'product_category.field_product_category_value',
+						'value' => $value,
+						'operator' => '=',
+						
+					),
+				),
+			);
+		}
+		
+		if(isset($_GET['character']))
+		{
+			$value = filter_xss($_GET['character']);
+			
+			
+			// Write the join conditions
+			$join = new views_join();
+			$join->table = 'field_data_field_characteristics';
+			$join->left_table = 'node';// or wathever table you want to join with
+			$join->field = 'entity_id';
+			$join->left_field = 'nid';// or wathever column you want to join with
+			$join->type = 'left';// if you want another join type play with this value
+			
+			// Do the actual join
+			$query->table_queue['product_character'] = array (
+				'alias' => 'product_character',// I believe this is optional
+				'table' => 'field_data_field_characteristics',
+				'relationship' => 'node',
+				'join' => $join,
+			);
+			
+			$query->where[] = array(
+				'type' => 'and',
+				'conditions' => array(
+					array(
+						'field' => 'product_character.field_characteristics_value',
+						'value' => $value,
+						'operator' => '=',
+						
+					),
+				),
+			);
+		}
+		
+	}
+}
