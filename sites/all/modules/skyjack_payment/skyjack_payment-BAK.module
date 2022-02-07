@@ -1,0 +1,89 @@
+<?php
+
+/**
+ * @file
+ * Provides the payroll deduction payment methods.
+ */
+
+
+/**
+ * Implements hook_uc_payment_method().
+ */
+function skyjack_payment_uc_payment_method() {
+
+	$methods['payroll_deduction'] = array(
+		'name' => t('Payroll Deduction'),
+		'title' => t('Payroll Deduction'),
+		'desc' => t('Deduct payment from payroll.'),
+		'callback' => 'sj_payment_method_payroll_deduction',
+		'weight' => 1,
+		'checkout' => TRUE,
+	);
+	
+	$methods['manager_credits'] = array(
+		'name' => t('Manager Credits'),
+		'title' => t('Manager Credits'),
+		'desc' => t('Make order with manager credits.'),
+		'callback' => 'sj_payment_method_manager_credits',
+		'weight' => 1,
+		'checkout' => TRUE,
+	);
+	return $methods;
+}
+
+/**
+ * Payment method callback
+ */
+function sj_payment_method_payroll_deduction($op, &$order, $form = NULL, &$form_state = NULL) {
+
+  switch ($op) {
+    case 'cart-details':
+      return false;
+      break;
+  
+    case 'cart-process':
+      break;
+    
+    case 'cart-review':
+      break;
+    
+    case 'order-submit':
+	  if(isset($_SESSION['customer_type_details']['employee_number']) and isset($_SESSION['customer_type_details']['email']))
+	  {
+		$msg = "Employee Name: ". $order->delivery_first_name." ". $order->delivery_last_name ." <br> Employee Email: ".$_SESSION['customer_type_details']['email']." <br> Employee Number: ".$_SESSION['customer_type_details']['employee_number'];
+		uc_payment_enter($order->order_id, 'payroll_deduction', $order->order_total, 0, NULL, $msg);
+		return true;
+      }
+    case 'order-view':
+    case 'customer-view':
+      break;
+  }
+}
+
+/**
+ * Payment method callback
+ */
+function sj_payment_method_manager_credits($op, &$order, $form = NULL, &$form_state = NULL) {
+
+  global $user;	
+
+  switch ($op) {
+    case 'cart-details':
+      return false;
+      break;
+  
+    case 'cart-process':
+      break;
+    
+    case 'cart-review':
+      break;
+    
+    case 'order-submit':
+		$msg = "Manager Name: ".$user->name." <br> Manager Email: ".$user->mail." <br> User ID: <a href='/user/".$user->uid."/edit?destination=admin/people'>".$user->uid."</a> <br> User Roll: ".implode(',',$user->roles);
+		uc_payment_enter($order->order_id, 'manager_credits', $order->order_total, 0, NULL, $msg);
+		return true;
+    case 'order-view':
+    case 'customer-view':
+      break;
+  }
+}

@@ -1,0 +1,211 @@
+<?php
+
+/**
+ * Implements hook_block_info().
+ */
+function dexp_popup_login_block_info() {
+  $blocks = array();
+  $blocks['bootstrap-login'] = array(
+    'info' => t('Bootstrap Login/Register Menu'),
+    'status' => TRUE,
+    'region' => 'top_left',
+    'visibility' => BLOCK_VISIBILITY_NOTLISTED,
+    'pages' => '',
+  );
+  return $blocks;
+}
+/**
+ * Implements hook_block_view().
+ */
+function dexp_popup_login_block_view($delta = '') {
+  switch ($delta) {
+    case 'bootstrap-login':
+      //return user_is_logged_in() ? NULL : _bootstrap_config_login_block_view();
+      return _bootstrap_config_login_block_view();
+  }
+  return NULL;
+}
+function _bootstrap_config_login_block_view() {
+	
+  $content = '';
+  
+  if(!user_is_logged_in()) {
+  
+	$login_form = drupal_get_form('user_login_block');
+	$register_form = drupal_get_form('user_register_form');
+  
+
+
+
+	  $content = '<ul class="nav pull-right">';
+
+    $content .= addRegionSelector();
+
+
+    $content .= '<li class="dropdown">';
+	  $content .= '<a class="dropdown-toggle" href="#" data-toggle="dropdown"><i class="fa fa-lock"></i> ' . t('TM/RVP Login') . '</a>';
+	  $content .= '<div class="dropdown-menu embedded-form">' . drupal_render($login_form) . '</div>';
+	  $content .= '</li>';
+	  $content .= '<li class="dropdown"><a href="http://skyjack.com"><i class="fa fa-external-link"></i> Back to skyjack.com</a></li>';
+
+
+    /*
+	  if (variable_get('user_register', USER_REGISTER_VISITORS_ADMINISTRATIVE_APPROVAL)) {
+		$content .= '<li class="dropdown">';
+		$content .= '<a class="dropdown-toggle" href="#" data-toggle="dropdown"><i class="fa fa-user"></i> ' . t('Register') . '</a>';
+		$content .= '<div class="dropdown-menu embedded-form">' . drupal_render($register_form) . '</div>';
+		$content .= '</li>';
+	  }
+	  */
+	  $content .= '</ul>';
+  
+  } else {
+
+	global $user;
+
+
+	$ifrole = array_intersect(array('manager', 'territory manager', 'RVP'), $user->roles);
+	$content = '<ul class="nav pull-right">';
+
+  $content .= addRegionSelector();
+
+
+	if(!empty($ifrole)) {
+
+		
+		$content .= '<li class="dropdown"><a href="/user/'.$user->uid.'/orders"><i class="fa fa-user"></i> <b>My Account</b></a></li>';
+		$content .= '<li class="dropdown"><a href="/user/logout"><i class="fa fa-sign-out"></i> <b>Logout</b></a></li>';
+		
+		
+	}
+	$content .= '<li class="dropdown"><a href="http://skyjack.com"><i class="fa fa-external-link"></i> <b>Back to skyjack.com</b></a></li>';
+	$content .= '</ul>';
+  }
+  
+  
+  return array(
+    'subject' => NULL,
+    'content' => $content,
+  );
+}
+/**
+ * Implements hook_form_alter().
+ */
+function dexp_popup_login_form_alter(&$form, &$form_state, $form_id) {
+  switch ($form_id) {
+    case 'user_login_block':
+    //case 'user_register_form':
+      // Add ajax wrapper to form.
+      $html_id = str_replace('_', '-', $form_id);
+      $form['#prefix'] = '<div id="ajax-' . $html_id . '-wrapper">';
+      $form['#suffix'] = '</div>';
+      //form['pass']['#suffix'] = l('Request new password','user/password');
+      $form['pass']['#field_suffix'] = l('<span class="fa fa-question-circle"></span>','user/password', array('html'=>true,'attributes'=>array('class'=>array('forgot-password','dtooltip'),'data-toggle'=>'tooltip','data-original-title'=>t('Request new password'),'data-placement'=>'bottom','data-container'=>'body')));
+      $form['links'] = '';
+      // Add ajax functionality to form submit button.
+      $form['actions']['submit']['#ajax'] = array(
+        'callback' => '_bootstrap_config_ajax_callback',
+        'wrapper' => 'ajax-' . $html_id . '-wrapper',
+        'event' => 'click',
+      );
+      break;
+  }
+}
+function _bootstrap_config_ajax_callback($form, $form_state) {
+  ctools_include('ajax');
+  ctools_add_js('ajax-responder');
+  if (form_get_errors()) {
+    return $form; // Reload form if it didn't pass validation.
+  }
+  if ($form['#id'] === 'user-login') {
+    drupal_set_message(check_plain('Successful login'));
+  }
+  $commands = array();
+  $commands[] = ctools_ajax_command_reload();
+  return array(
+    '#type' => 'ajax',
+    '#commands' => $commands
+  );
+}
+
+
+function addRegionSelector(){
+
+    $content = "";
+
+    $content .= '<li class="dropdown">';
+    $content .= '<a class="dropdown-toggle" href="#" data-toggle="dropdown"><i class="fa fa-globe"></i> ' . t('Select Region') . ' &nbsp; <i class="fa fa-chevron-down"></i></a>';
+    
+    $content .= '<div class="dropdown-menu embedded-form">';
+
+
+    $drup_form = drupal_get_form('uc_multiprice_country_masquerade_form2');
+    
+    
+    /*
+    echo "<pre>";
+    print_r($drup_form);
+    echo "</pre>";
+
+    echo $drup_form['#build_id'];
+    */
+//print $drup_form;
+
+    /*
+    $content .= '<form action="/" method="post" id="uc-multiprice-country-masquerade-form2" accept-charset="UTF-8"><div><fieldset class="form-wrapper" id="edit-uc-multiprice"><div class="fieldset-wrapper"><div class="form-item form-type-select form-item-uc-multiprice-country">
+                  <label for="edit-uc-multiprice-country">Choose Region </label>
+                 <select id="edit-uc-multiprice-country" name="uc_multiprice_country" class="form-select"><option value="124">Canada / International</option><option value="840" selected="selected">United States</option></select>
+                </div>
+                <input class="btn btn-primary form-submit" type="submit" id="edit-submit" name="op" value="Apply"></div></fieldset>
+                <input type="hidden" name="form_build_id" value="'.$drup_form['#build_id'].'">
+                <input type="hidden" name="form_token" value="'.$drup_form['form_token']['#default_value'].'">
+                <input type="hidden" name="form_id" value="uc_multiprice_country_masquerade_form2">
+                </div></form>';
+    */
+
+    /*TOP REGION SELECTOR*/
+
+    $content .= '<div id="region_selector_bw"></div>';    
+
+
+
+    $content .= '</div>';
+    $content .= '</li>';
+
+    return $content;
+}
+
+
+function uc_multiprice_country_masquerade_form2($form, &$form_state) {
+  
+  $form = NULL;
+
+  $form['uc_multiprice'] = array(
+    '#type' => 'fieldset',
+    '#title' => '',
+    '#collapsible' => FALSE,
+    '#collapsed' => FALSE,
+  );
+  
+
+  $form['uc_multiprice']['uc_multiprice_country'] = array(
+    '#type' => 'select',
+    '#title' => 'Choose Region',
+    '#options' => array(
+                      '124'   => 'Canada / International',
+                      '840'   => 'United States',
+                    ),
+    '#default_value' => $_SESSION['uc_multiprice']['country_code'],
+  );
+
+
+  $form['uc_multiprice']['submit'] = array(
+    '#type' => 'submit',
+    '#value' => 'Apply',//'#value' => t('Apply country'),
+  );
+
+  //ML:si esta logueado no debe dejar que se muestre el listado de seleccion de pais
+
+  return $form;
+}
+?>

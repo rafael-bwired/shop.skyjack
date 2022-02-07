@@ -1,0 +1,111 @@
+
+#brb-wrap {
+   background: #000;
+   color: #fff;
+   font-size: 12px;
+   margin: 0;
+   padding: 0;
+   text-align: center;
+   width: 100%;
+}
+
+#brb-wrap-inner {
+   overflow: hidden;
+   height: 30px;
+}
+
+#brb-wrap h2,
+#brb-wrap h4 {
+  color: #333;
+  margin: 10px 0;
+  text-align: center;
+}
+
+#brb-message {
+   zoom: 1;
+}
+#brb-message-inner {
+   padding: 4px;
+   text-align: center;
+}
+
+#brb-wrap ul {
+  list-style-type: disc;
+  list-style-image: none;
+  margin: .5em 0 1em 1em;
+}
+
+#brb-wrap li {
+  background: none;
+  list-style-type: disc;
+  list-style-image: none;
+  margin: .15em 0 .15em .5em;
+  padding: 0;
+}
+
+#brb-browsers ul {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  width: 460px; /* (li's width + li's lateral margins + li's lateral paddings) * number of browsers */
+}
+
+#brb-browsers ul li {
+  display: inline;
+  float: left;
+  list-style: none;
+  margin: 0 15px 0 0;
+  padding: 0;
+}
+
+#brb-browsers ul li.last { margin-right: 0; }
+
+#brb-browsers ul li a {
+  background: transparent url(images/browsers.png) no-repeat;
+  color: #333;
+  display: block;
+  padding: 80px 0 0 0;
+  margin: 0 0 10px 0;
+  text-align: center;
+  text-decoration: none;
+  width: 80px;
+}
+
+#brb-browsers ul li a:hover { text-decoration: underline; }
+
+#brb-browsers ul li#brb-firefox a { background-position: 0 0; }
+
+#brb-browsers ul li#brb-safari a { background-position: -80px 0; }
+
+#brb-browsers ul li#brb-chrome a { background-position: -160px 0; }
+
+#brb-browsers ul li#brb-opera a { background-position: -240px 0; }
+
+#brb-browsers ul li#brb-ie a { background-position: -320px 0; }
+
+
+.msg_ie {
+   top: 0px;
+   position: absolute;
+   height: 30px;
+   z-index: 1000;
+   font-weight: 300;
+   display: block;
+}
+
+.texto {
+   width: auto;
+   display: inline-block;
+   color: #fff;
+} 
+
+#brb-message-close {
+   display: inline-block;
+   color: #f00;
+   cursor: pointer;
+   padding-right: -30px;
+}
+.texto a:not(.btn) {
+   color: rgba(219, 219, 219, 1) !important;
+   font-weight: bold;
+}

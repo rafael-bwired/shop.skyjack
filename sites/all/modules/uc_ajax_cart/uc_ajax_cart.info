@@ -1,0 +1,13 @@
+name = Ajax Driven Cart
+description = Ajax Driven Cart
+package = "Ubercart - extra"
+core = 7.x
+dependencies[] = uc_cart
+
+; Information added by drupal.org packaging script
+version = "7.x-1.x-dev"
+core = 7.x
+project = "uc_ajax_cart"
+datestamp = "1312419642"
+
+

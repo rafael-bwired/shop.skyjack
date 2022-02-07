@@ -1,0 +1,19 @@
+<?php
+
+function skyjackstorem_schema() {
+	$schema['employee_info'] = array(
+		'description' => 'A list of all current employee numbers who can purchase products from payroll.',
+		'fields' => array(
+			'employee_number' => array(
+				 'type' => 'varchar',
+				 'length' => 30,
+				 'not null' => TRUE, 
+				 'default' => ''
+			),
+			
+		),
+		'primary key' => array('employee_number'),
+	);
+	
+	return $schema;
+}

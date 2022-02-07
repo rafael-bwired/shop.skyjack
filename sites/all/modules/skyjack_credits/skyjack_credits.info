@@ -1,0 +1,5 @@
+name = Skyjack Credits
+description = Ability to give certain user rolls an credits to purchase items in the store.
+dependencies[] = uc_cart
+package = SkyJack
+core = 7.x
