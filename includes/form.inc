@@ -1393,7 +1393,10 @@ function _form_validate(&$elements, &$form_state, $form_id = NULL) {
         // identical to the empty option's value, we reset the element's value
         // to NULL to trigger the regular #required handling below.
         // @see form_process_select()
-        elseif ($elements['#type'] == 'select' && !$elements['#multiple'] && $elements['#required'] && !isset($elements['#default_value']) && $elements['#value'] === $elements['#empty_value']) {
+        elseif ($elements['#type'] == 'select' && $elements['#required']
+        && (!array_key_exists('#multiple', $elements) || !$elements['#multiple'])
+        && !isset($elements['#default_value'])
+        && $elements['#value'] === $elements['#empty_value']) {
           $elements['#value'] = NULL;
           form_set_value($elements, NULL, $form_state);
         }
@@ -1816,16 +1819,17 @@ function form_builder($form_id, &$element, &$form_state) {
     $element['#defaults_loaded'] = TRUE;
   }
   // Assign basic defaults common for all form elements.
-/*  $element += array(
+  /*$element += array(
     '#required' => FALSE,
     '#attributes' => array(),
     '#title_display' => 'before',
   );*/
-$element = array_merge(array(
-    '#required' => FALSE,
-    '#attributes' => array(),
-    '#title_display' => 'before',
-  ), $element);
+
+	$element = array_merge(array(
+            '#required' => FALSE,
+            '#attributes' => array(),
+            '#title_display' => 'before',
+          ), $element);
 
   // Special handling if we're on the top level form element.
   if (isset($element['#type']) && $element['#type'] == 'form') {
