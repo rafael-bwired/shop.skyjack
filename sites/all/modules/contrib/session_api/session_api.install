@@ -1,12 +1,16 @@
 <?php
 
+/**
+ * @file
+ * Install file for Session API.
+ */
 
 /**
- * Implement hook_schema().
+ * Implements hook_schema().
  */
 function session_api_schema() {
   $schema['session_api'] = array(
-    'description' => t('Map Session API IDs to the {sessions} sid field.'),
+    'description' => 'Map Session API IDs to the {sessions} sid field.',
     'fields' => array(
       'sid' => array(
         'type' => 'serial',
@@ -47,7 +51,7 @@ function session_api_update_6100() {
 }
 
 /**
- * Implementation of hook_update_N().
+ * Implements hook_update_N().
  *
  * Adds timestamp field.
  */
@@ -64,4 +68,15 @@ function session_api_update_7101() {
  */
 function session_api_update_7102() {
   db_change_field('session_api', 'session_id', 'session_id', array('type' => 'varchar', 'length' => 128, 'not null' => TRUE));
+}
+
+/**
+ * Implements hook_update_N().
+ *
+ * Sets the expire time to 0 if it was previously set to -1.
+ */
+function session_api_update_7103() {
+  if (variable_get('session_api_cookie_expire_time', 2592000) == -1) {
+    variable_set('session_api_cookie_expire_time', 0);
+  }
 }
