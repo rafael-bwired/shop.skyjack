@@ -1,0 +1,544 @@
+<?php
+
+/** 
+ * before install module, need to create 'Allowance' field to user profile. ('field_data_field_allowance' in database)  
+ */
+
+
+/**
+ *  Implements hook_user_update().
+ *  When insert/update a value to user allowance, will set the number in table uc_skyjack_user_credits too
+ */
+function skyjack_credits_user_update(&$edit, $account, $category) {
+
+	if(isset($edit['field_allowance']['und']['0']['value']))
+	{
+		$field_allowance = $edit['field_allowance']['und']['0']['value'];
+		
+		if($category == 'account') {
+			$result = db_query('INSERT INTO uc_skyjack_user_credits (uid, init_credits, credits)
+				VALUES (:uid, :initcredits, :credits) 
+				ON DUPLICATE KEY
+				UPDATE credits = :credits, init_credits = :initcredits', array(':uid' => $account->uid, ':initcredits' => $field_allowance, ':credits' => $field_allowance));
+		} else {
+			$result = db_query('INSERT INTO uc_skyjack_user_credits (uid, init_credits, credits)
+				VALUES (:uid, :initcredits, :credits) 
+				ON DUPLICATE KEY
+				UPDATE credits = :credits', array(':uid' => $account->uid, ':initcredits' => $field_allowance, ':credits' => $field_allowance));
+		}
+	}
+}
+
+/**
+ * hook_uc_checkout_pane()
+ */
+
+function skyjack_credits_uc_checkout_pane() {
+	  $panes['sj-credits'] = array
+	  (
+			'id' => 'sj-credits', 
+			'callback' => 'sj_credits_checkout_pane_wrapping_options',
+			'title' => t('Manager Budget'), 
+			'desc' => t('Use budget during checkout'), 
+			'weight' => 5, 
+			'process' => TRUE,
+	  );
+	  return $panes;
+}
+
+/**
+ * callback 
+ */
+function sj_credits_checkout_pane_wrapping_options($op, &$order, $form = NULL, &$form_state = NULL) {
+	
+	//echo "<pre>";print_r($order);echo "</pre>";exit;
+	//echo $op.":::";exit;
+
+	//error_log("order items 0 ".print_r($order->line_items,TRUE));
+	//error_log("\n\n\n");
+
+	global $user;
+	$role_name = array('administrator', 'manager', 'territory manager', 'RVP'); //only these 4 user rolls can use credits.
+
+	$user_data = user_load($user->uid);
+	
+	if(user_is_logged_in() and (in_array($role_name[0], $user->roles) || in_array($role_name[1], $user->roles) || in_array($role_name[2], $user->roles)) and isset($user_data->field_allowance['und']['0']['value']))
+	{
+		switch($op)
+		{
+			case 'view':
+				
+				$description = t('Please check this box if you wish your order to be gift wrapped.');
+				// Here we create the form elements that will be added into the checkout pane
+				
+				//$description = variable_get('uc_sj_credits_pane_description', t('Use your credits to make purchase.'));
+				$description = variable_get('uc_sj_credits_pane_description', t(''));
+				$contents = uc_sj_credits_form(array(), $form_state, 'checkout');
+				
+				
+				// Next we return the form fields according to the following pattern
+				return array
+				(
+					'description' => $description,
+					'contents' => $contents,
+				);
+
+				break;
+			case 'process':
+				// Here we tell Ubercart what to do with the submitted values for the form elements added when $op == 'view'
+
+				if($form_state['clicked_button']['#value'] == 'Apply budget to order' and isset($order) and isset($form_state['values']['panes']['sj-credits']['credits']) and is_numeric($form_state['values']['panes']['sj-credits']['credits']))
+				{
+					//set default payment method to paypal_wps 
+					$form_state['values']['panes']['payment']['payment_method'] = 'paypal_wps';
+
+					$total_order = skyjack_credits_total_order($order);
+					$credits_validate = uc_credits_apply_validate($total_order, $order);
+					if($credits_validate)
+					{
+						//remove all sj_credits, make sure only one applied 
+						
+						if($total_order <= 0)
+						{
+							uc_credits_line_item_remove($order);
+						}
+						
+						if($total_order > 0)
+						{
+							if(uc_if_credites_applied_to_order($order) == 'no')
+							{
+								//error_log("no applied");
+								uc_order_line_item_add($order->order_id, 'sj_credits', 'Redeem Credits (Budget)', -$total_order, 10);
+								//descontar los creditos
+							}
+							else
+							{
+								//error_log("already applied");
+								uc_credits_line_item_update($order, 'Redeem Credits', -$total_order); 
+								//descontar los creditos
+							}
+
+
+							//descontar creditor calculo
+							//$adescontar = skyjack_credits_discount_credit();
+
+							
+						}
+						
+						sj_credits_checkout_pane_submit($form, $form_state);
+					} else {
+						form_set_error('sj-credits', t('Fail to apply budget, you may not have enough budget.'));
+					}
+					
+				}
+				
+				break;
+			case 'prepare':
+			case 'review':
+				$review = array();
+
+				$result = db_query("SELECT * FROM uc_order_line_items WHERE order_id = :id AND type = :type", array(':id' => $order->order_id, ':type' => 'sj_credits'));
+				if ($line_item = $result->fetchAssoc()) {
+					$review[] = array('title' => $line_item['title'], 'data' => theme('uc_price', array('price' => $line_item['amount'])));
+				}
+
+				return $review;
+		}
+	}
+}
+
+/**
+ *  build check out form elements
+ */
+function uc_sj_credits_form($form, $form_state, $context = 'block', $ajax = FALSE) {
+	
+	if (!isset($_SESSION['cart_order'])) {
+		return $form;
+	}
+	
+	global $user;
+	$user_credits = get_user_current_credits($user->uid);
+	
+	
+	$order = uc_order_load($_SESSION['cart_order']);
+	$redeem_allowed = ($user_credits >= $order->order_total)?$order->order_total:$user_credits;
+	$redeem_allowed = $redeem_allowed - uc_get_credits_in_line_item($order);
+	
+	
+	$form['current_credits'] = array(
+		'#type' => 'item',
+		'#title' => t('Your budget balance: ').$user_credits,
+		'#markup' => '',
+	);
+
+	$form['current_order'] = array(
+		'#type' => 'item',
+		'#title' => t('Your budget after purchase: ').($user_credits - $order->order_total),
+		'#markup' => '',
+	);
+
+	$form['credits'] = array(
+		'#type' => 'textfield',
+		'#size' => 25,
+		'#title' => t('Enter number of budget you want to redeem:'),
+		'#description' => t('(Note: for Paypal\'s rule, you can only redeem either full price as same as "Order total", or less number than products price "Subtotal" when shipping is not zero.)'),
+		'#default_value' => $redeem_allowed
+	);
+	$form['apply'] = array(
+		'#type' => 'submit',
+		'#value' => t('Apply budget to order'),
+		'#name' => 'uc-credits-redeem-apply',
+		'#submit' => array('sj_credits_checkout_pane_submit'),
+		'#ajax' => array(
+			'callback' => 'sj_credits_checkout_pane_submit_callback',
+		),
+	);
+
+	
+	
+	return $form;
+}
+
+/**
+ * form submit
+ */
+function sj_credits_checkout_pane_submit($form, &$form_state) {
+	
+  unset($form_state['checkout_valid']);
+  $form_state['redirect'] = 'cart/checkout';
+  $form_state['rebuild'] = TRUE;
+  
+}
+
+/**
+ *  ajax 
+ */
+function sj_credits_checkout_pane_submit_callback($form, &$form_state) {
+  
+  $commands = array();
+  
+  $commands[] = ajax_command_replace('#sj-credits-pane', drupal_render($form['panes']['sj-credits']));
+  
+  if (isset($form['panes']['payment']['line_items'])) {
+	//$commands[] = ajax_command_replace('#payment-pane', drupal_render($form['panes']['payment'])."<script>location.reload();</script>");
+	
+	$commands[] = ajax_command_replace('#payment-pane', drupal_render($form['panes']['payment']));
+	$commands[] = ajax_command_prepend('#payment-pane', theme('status_messages'));
+  }
+  
+  if (isset($form['panes']['quotes'])) {
+    $commands[] = ajax_command_replace('#quotes-pane', drupal_render($form['panes']['quotes']));
+	$commands[] = ajax_command_invoke('#quotes-pane input', 'attr', array('disabled','disabled'));
+  }
+  
+  if (isset($form['panes']['coupon'])) {
+	$commands[] = ajax_command_invoke('#coupon-pane input', 'attr', array('disabled','disabled'));
+  }
+  
+  return array('#type' => 'ajax', '#commands' => $commands);
+}
+
+/**
+ * Get user current credits
+ */
+
+function get_user_current_credits($uid) {
+	
+	//it's stored in field field_allowance
+	/*
+	$user_data = user_load($uid, TRUE);
+	return $user_data->field_allowance['und']['0']['value'];
+	*/
+	
+	return db_query('SELECT field_allowance_value AS amount
+		FROM field_data_field_allowance WHERE entity_id = :uid', array(':uid' => $uid))->fetchField();
+	
+}
+
+/**
+ * validate if the credits can be applied to order
+ */
+function uc_credits_apply_validate($credits, &$order) {
+	global $user;
+	$user_avaliable_credits = get_user_current_credits($user->uid);
+	if(isset($order) and $credits >= 0 and $user_avaliable_credits >= $credits)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+/**
+ * check if credits applied to order
+ */
+function uc_if_credites_applied_to_order($order) {
+	$applied = 'no';
+	$line_item_type = 'sj_credits';
+
+	//bwired code
+	$result = db_query("SELECT count(*) FROM uc_order_line_items WHERE order_id = :id AND type = :type", array(':id' => $order->order_id, ':type' => 'sj_credits'));
+	return ( $result->fetchField() > 0 ) ? "yes" : "no";
+
+	/*return $review;
+
+
+	error_log("entrando a uc_if_credites_applied_to_order con items order :: ".print_r($order->line_items,true)); 
+	/*foreach($order->line_items as $key => $line_item)
+	{
+		if($line_item['type'] == $line_item_type)
+		{
+			$applied = 'yes';
+		}
+	}
+
+	error_log("applied::".$applied); */
+	
+	/*return $applied;*/
+}
+
+/**
+ * update sj_credits from line_item
+ */
+function uc_credits_line_item_update($order, $title, $amount) {
+	$line_item_type = 'sj_credits';
+	foreach($order->line_items as $key => $line_item)
+	{
+		if($line_item['type'] == $line_item_type)
+		{
+			$line_item_id = $line_item['line_item_id'];
+			uc_order_update_line_item($line_item_id, $title, $amount);
+		}
+	}
+}
+
+/**
+ * remove sj_credits from line_item
+ */
+function uc_credits_line_item_remove($order) {
+	$line_item_type = 'sj_credits';
+	foreach($order->line_items as $key => $line_item)
+	{
+		if($line_item['type'] == $line_item_type)
+		{
+			uc_order_delete_line_item($line_item['line_item_id']);
+		}
+	}
+	
+}
+
+/**
+ * get credits amount already in line items
+ */
+function uc_get_credits_in_line_item($order) {
+	$credits_in_line_item = 0;
+	
+	$line_item_type = 'sj_credits';
+	foreach($order->line_items as $key => $line_item)
+	{
+		if($line_item['type'] == $line_item_type)
+		{
+			$credits_in_line_item += $line_item['amount'];
+		}
+	}
+	return $credits_in_line_item;
+}
+
+
+/**
+ * Implements hook_uc_line_item().
+ */
+function sj_credits_uc_line_item()
+{
+	$items[] = array
+	(
+		'id' => 'sj-credits', // You will use this ID in the javascript 
+		'title' => t('Redeem Budget'), // This is the text that will be displayed on the line item in the subtotal
+		//'callback' => 'sj_credits_line_item_callback', // This is the callback function
+		'weight' => 0, // This is the position of the line item in the total process
+		'default' => TRUE,
+		'stored' => TRUE, // This tells Ubercart to store the submitted data
+		'calculated' => TRUE, // This is for line items that need to be calculated and not just displayed. For this tutorial this value is required to be true
+		'add_list' => TRUE,
+	);
+	return $items;
+}
+
+function sj_credits_line_item_callback($op, &$arg1)
+{
+	/*
+	if($op == 'cart-preview')
+	{
+		// First we need to determine the value of the discount. In this tutorial, the discount is a fixed price, but your module may require the discount value to be calculated. In my real module, the value of the discount was a percentage discount. The percentag wasset on the settings page. So I used variable_get() to get the percentage, then used the values contained in $arg1 to calculate the order total, then multiplied this by the percentage to get the amount of the discount. This tutorial is much simpler however and just uses a hard-coded value of 3 (3.00 pounds). 
+		$vars = array('redeemAmount' => 3); // This is the amount of the discount
+		drupal_add_js(array('giftWrap' => $vars), 'setting'); //This passes the discount to the javascript, so that it can be recovered in the javascript script
+		$path = drupal_get_path('module', 'gift_wrap') . '/'; //We get the path to the javascript script
+		drupal_add_js($path . 'scripts/gift_wrap.js');  // I keep my scripts in a folder inside the module called 'scripts'. In this case the path to the script is [MODULES_FOLDER]/my_module/scripts/gift_wrap.js
+	}
+	*/
+}
+
+/**
+ * Implements hook_uc_order().
+ */
+function skyjack_credits_uc_order($op, &$order, $arg2)
+{
+	switch($op)
+	{
+		case 'total':
+			// Here we return a value that will be added to the order total. 
+			foreach($order->line_items as $line_item)
+			{
+				if($line_item['type'] == 'sj_credits') 
+				{
+					// If we enter this, the line item exists, so we need to return the value of the line item. This will adjust the order total.
+					return $line_item['amount'];
+				}
+			}
+			break;
+		case 'submit':
+			// Here we perform any actions that our module requires for the module itself
+			
+			$credits_precomplete_validate = credits_precomplete_validate($order);
+			if(!$credits_precomplete_validate)
+			{
+				return array(array(
+					'pass' => FALSE,
+					'message' => t('Your budget is not enough to pay for the order.'),
+				));
+			}
+			break;
+	  
+	}
+}
+
+/**
+ * validate before final order process, 
+ * rules: 1. the credits is available for use 2. the credits covers full subtotal 3. when have other line items, credits can't be same as products value in cart
+ */
+function credits_precomplete_validate($order) {
+	global $user;
+	
+	$order_total = $order->order_total;
+	$redeem_credits = ABS(uc_get_credits_in_line_item($order)); //0 or > 0
+	$user_crrent_credits = get_user_current_credits($user->uid);
+	$product_total = 0;
+	
+	//get only products price, 
+	foreach($order->line_items as $k => $v)
+	{
+		if($v['type'] == 'subtotal')
+		{
+			$product_total = $v['amount'];
+		}
+	}
+	
+	if($redeem_credits == 0) //no redeem at this time
+	{
+		return true;
+	}
+	else
+	{
+		//redeem cover all order, need user's available credits to greater than redeem credits, use internal payment
+		if(round($order_total, 2) == 0 and $user_crrent_credits >= $redeem_credits)
+		{
+			return true;
+		}
+		//redeem not cover all order, 
+		//need user's available credits to greater than redeem credits, and greater than only products value, use paypal payment 
+		if(round($order_total, 2) > 0 and $user_crrent_credits >= $redeem_credits and $redeem_credits < $product_total)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+//update user credits after check out complete
+function update_user_credits($order, $amount, $note = 'redeem') {
+	global $user;
+	$before_credits = get_user_current_credits($user->uid);
+	$after_credits = $before_credits + $amount;
+
+	$result = db_query('INSERT INTO uc_skyjack_order_credits (uid, oid, value, before_credits, after_credits, note, created)
+			VALUES (:uid, :oid, :value, :before_credits, :after_credits, :note, NOW()) ', 
+			array(':uid' => $user->uid, ':oid' => $order->order_id, ':value' => $amount, ':before_credits' => $before_credits, ':after_credits' => $after_credits, ':note' => $note));
+	
+	
+	$account = user_load($user->uid); // Loading account
+	$edit = array(
+	  'field_allowance' => array(
+		'und' => array(
+		  0 => array(
+			'value' => $after_credits,
+		  ),
+		),
+	  ),
+	);
+	user_save($account, $edit, 'checkout');
+	
+	
+	//db_query('UPDATE field_data_field_allowance SET field_allowance_value = :after_credits WHERE entity_id = :uid', array(':after_credits' => $after_credits, ':uid' => $user->uid));
+	db_query('UPDATE uc_skyjack_user_credits SET credits = :after_credits WHERE uid = :uid', array(':after_credits' => $after_credits, ':uid' => $user->uid));
+} 
+
+/**
+ * Implements hook_uc_checkout_complete().
+ */
+function skyjack_credits_uc_checkout_complete($order, $account) {
+
+	$line_item_type = 'sj_credits';
+	foreach($order->line_items as $key => $line_item)
+	{
+		if($line_item['type'] == $line_item_type) // 'gift_wrap' is the line item ID that will be defined after this loop.
+		{
+			update_user_credits($order, $line_item['amount'], 'redeem');
+		}
+	}
+	
+}
+
+function skyjack_credits_total_order($order){
+
+	$order_total = 0;
+
+	/*
+	echo "<pre>";
+	print_r($order); 
+	echo "<pre>";
+	exit;
+	*/
+
+
+	//error_log("\rate:\n".$order->quote["rate"]);
+	
+	foreach ($order->products as $key => $product) {
+		$order_total += ($product->price * $product->qty);
+	}
+
+
+	$order_total += $order->quote["rate"];
+
+
+	if(is_array($order->taxes)){
+		$order_total += array_pop($order->taxes)->amount;
+	}
+
+	$coupons          = db_query("SELECT sum(amount) FROM uc_order_line_items WHERE order_id = :id and type = 'coupon'", array(':id' => $order->order_id))->fetchField();
+
+	$order_total += $coupons;
+
+	//copones pendientes
+	
+	//$order->data['coupons']//foreach
+
+	//$order_total = 71;
+
+	//error_log("Coupons: ".$coupons."\r\n",3,"/opt/bitnami/apps/skyjack_shop/error.log");
+	//error_log("Total de la Orden: ".$order_total."\r\n",3,"/opt/bitnami/apps/skyjack_shop/error.log");
+	return $order_total;
+
+
+}

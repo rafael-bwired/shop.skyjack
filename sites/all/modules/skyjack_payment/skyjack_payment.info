@@ -1,0 +1,6 @@
+name = skyjack payment
+description = Provides the payroll deduction and manager credits payment methods for Ubercart.
+dependencies[] = uc_cart
+dependencies[] = uc_payment
+package = SkyJack
+core = 7.x
