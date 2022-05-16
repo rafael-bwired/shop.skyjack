@@ -1,0 +1,4 @@
+name = skyjack login redirects
+description = Provides the payroll deduction and manager credits payment methods for Ubercart.
+package = SkyJack
+core = 7.x

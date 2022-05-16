@@ -1,0 +1,4 @@
+name = skyjack products view
+description = skyjack products view filter, work with view "Home - Popular Products"
+package = SkyJack
+core = 7.x

@@ -1,0 +1,123 @@
+<?php
+
+/**
+ * @file
+ * Ubercart skyjack_credits.module schema
+ */
+
+/**
+ * Implements hook_schema().
+ */
+function skyjack_credits_schema() {
+  $schema = array();
+
+  $schema['uc_skyjack_user_credits'] = array(
+    'description' => 'Skyjack Ubercart User credits',
+    'fields' => array(
+      'cid' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+	  'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+	  'init_credits' => array(
+        'type' => 'numeric',
+        'precision' => 10,
+        'scale' => 2,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'credits' => array(
+        'type' => 'numeric',
+        'precision' => 10,
+        'scale' => 2,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'status' => array(
+        'type' => 'int',
+        'size' => 'tiny',
+        'not null' => TRUE,
+        'default' => 1,
+      ),
+    ),
+    'primary key' => array('cid'),
+    'unique keys' => array('uid' => array('uid')),
+  );
+
+  $schema['uc_skyjack_order_credits'] = array(
+    'description' => 'Ubercart credits used on Orders',
+    'fields' => array(
+      'uoid' => array(
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'oid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'value' => array(
+        'type' => 'numeric',
+        'precision' => 10,
+        'scale' => 2,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+	  'before_credits' => array(
+        'type' => 'numeric',
+        'precision' => 10,
+        'scale' => 2,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+	  'after_credits' => array(
+        'type' => 'numeric',
+        'precision' => 10,
+        'scale' => 2,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+	  'note' => array('
+	         type' => 'varchar',
+			 'length' => 255,
+			 'not null' => TRUE, 
+			 'default' => ''
+	   ),
+	  'created' => array(
+			'type' => 'varchar',
+			'length' => 50,
+			'not null' => TRUE,
+			'default' => '',
+	  ),
+	  
+	  
+    ),
+    'primary key' => array('uoid'),
+	'indexes' => array(
+		'uid'=>array('uid'),
+		'oid'=>array('oid'),
+	),
+  );
+  return $schema;
+}
+
+/**
+ * Implements hook_uninstall().
+ */
+function skyjack_credits_uninstall() {
+  
+}
